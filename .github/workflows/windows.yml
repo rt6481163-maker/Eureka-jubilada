@@ -1,0 +1,52 @@
+name: Windows RDP Gratuito
+
+on: 
+  workflow_dispatch: # Permite activar la máquina manualmente con un botón
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360 # Límite máximo de GitHub por ejecución (6 horas)
+
+    steps:
+    - name: Descargar e Instalar Ngrok
+      run: |
+        Invoke-WebRequest https://equinox.io -OutFile ngrok.zip
+        Expand-Archive ngrok.zip
+        
+    - name: Autenticar en Ngrok
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      run: |
+        .\ngrok\ngrok.exe config add-authtoken $env:NGROK_AUTH_TOKEN
+
+    - name: Habilitar Escritorio Remoto (RDP)
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+
+    - name: Configurar Usuario y Contraseña
+      run: |
+        $Password = ConvertTo-SecureString "WindowsCloud2026!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+
+    - name: Crear Túnel y Mostrar Datos de Conexión
+      run: |
+        Start-Process .\ngrok\ngrok.exe -ArgumentList "tcp 3389"
+        Start-Sleep -Seconds 10
+        $TunnelInfo = Invoke-RestMethod -Uri http://127.0.0
+        $PublicUrl = $TunnelInfo.tunnels[0].public_url
+        Write-Host "=========================================================="
+        Write-Host "CONÉCTATE A TU WINDOWS USANDO ESTOS DATOS:"
+        Write-Host "Dirección RDP: $PublicUrl"
+        Write-Host "Usuario: runneradmin"
+        Write-Host "Contraseña: WindowsCloud2026!"
+        Write-Host "=========================================================="
+
+    - name: Mantener Servidor Activo
+      run: |
+        $loop = $true
+        while ($loop) {
+          Start-Sleep -Seconds 60
+        }
